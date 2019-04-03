@@ -1,0 +1,213 @@
+package fr.mediametrie.weball.activity.infrastructure.internal.mongo.config;
+
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.WriteConcern;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
+import org.springframework.data.mongodb.MongoDbFactory;
+import org.springframework.data.mongodb.config.AbstractMongoConfiguration;
+import org.springframework.data.mongodb.core.SimpleMongoDbFactory;
+import org.springframework.data.mongodb.core.convert.*;
+import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
+import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+
+import java.net.UnknownHostException;
+
+@Configuration(value="mongoDBConfig")
+@EnableMongoRepositories(basePackages = { "fr.mediametrie.weball.activity.infrastructure.internal.mongo"})
+@ComponentScan(basePackages = { "fr.mediametrie.weball.activity.infrastructure.internal.mongo" })
+@ConditionalOnProperty(prefix = "spring.mongodb.embedded", name = "mode", havingValue = "flapdoodle", matchIfMissing = true)
+@Import(MongoDbProperties.class)
+public class MongoDbConfig extends AbstractMongoConfiguration {
+
+    private MongoDbProperties mongoDbProperties;
+    private Environment environment;
+
+    @Autowired
+    public MongoDbConfig(final MongoDbProperties mongoDbProperties, final Environment environment) {
+        this.mongoDbProperties = mongoDbProperties;
+        this.environment = environment;
+    }
+
+    public MongoDbConfig() {
+    }
+
+    @Override
+    protected String getDatabaseName() {
+        return mongoDbProperties.getDbName();
+    }
+
+    @Bean
+    public MongoMappingContext mongoMappingContext() {
+        return new MongoMappingContext();
+    }
+
+    @Bean
+    public DefaultMongoTypeMapper defaultMongoTypeMapper() {
+        return new DefaultMongoTypeMapper(null);
+    }
+
+    @Bean
+    public MappingMongoConverter mappingMongoConverter() throws UnknownHostException {
+        MappingMongoConverter converter = new MappingMongoConverter(dbRefResolver(), mongoMappingContext());
+        converter.setTypeMapper(defaultMongoTypeMapper());
+        converter.setCustomConversions(customConversions());
+        return converter;
+    }
+
+    @Bean
+    public DbRefResolver dbRefResolver() throws UnknownHostException {
+        return new DefaultDbRefResolver(mongoDbFactory());
+    }
+
+    @Bean
+    public MongoDbFactory mongoDbFactory() throws UnknownHostException {
+        SimpleMongoDbFactory simpleMongoDbFactory = new SimpleMongoDbFactory(mongo(), getDatabaseName());
+        simpleMongoDbFactory.setWriteConcern(WriteConcern.JOURNAL_SAFE);
+        return simpleMongoDbFactory;
+    }
+
+    @Bean
+    public MongoClient mongo() throws UnknownHostException {
+        MongoClientOptions.Builder mongoClientBuilder = MongoClientOptions.builder();
+        MongoClientOptions mongoClientOptions = mongoClientBuilder
+                .connectionsPerHost(mongoDbProperties.getConnectionsPerHost())
+                .connectTimeout(mongoDbProperties.getConnectTimeout()).maxWaitTime(mongoDbProperties.getMaxWaitTime())
+                .socketKeepAlive(mongoDbProperties.getSocketKeepAlive()).build();
+        return mongoDbProperties.createMongoClient(mongoClientOptions, environment);
+    }
+
+}
+
+
+package fr.mediametrie.weball.activity.infrastructure.internal.mongo.config;
+
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.mongo.MongoProperties;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+
+import java.net.UnknownHostException;
+
+@Data
+@Configuration(value="mongoDbProperty")
+@ConditionalOnProperty(prefix = "spring.mongodb.embedded", name = "mode", havingValue = "flapdoodle", matchIfMissing = true)
+public class MongoDbProperties {
+
+    @Value("${mongo.panelist.host}")
+    private String host;
+    @Value("${mongo.panelist.port:0}")
+    private Integer port;
+    @Value("${mongo.panelist.dbName}")
+    private String dbName;
+    @Value("${mongo.panelist.username}")
+    private String username;
+    @Value("${mongo.panelist.password}")
+    private String password;
+
+
+    @Value("${mongo.panelist.connectionsPerHost:10}")
+    private Integer connectionsPerHost;
+    @Value("${mongo.panelist.connectTimeout:60000}")
+    private Integer connectTimeout;
+    @Value("${mongo.panelist.maxWaitTime:30000}")
+    private Integer maxWaitTime;
+    @Value("${mongo.panelist.socketTimeout:30000}")
+    private Integer socketTimeout;
+    @Value("${mongo.panelist.autoConnectRetry:true}")
+    private Boolean autoConnectRetry;
+    @Value("${mongo.panelist.socketKeepAlive:true}")
+    private Boolean socketKeepAlive;
+
+    public MongoClient createMongoClient(MongoClientOptions options, Environment environment) throws UnknownHostException {
+        return this.mapToMongoProperties().createMongoClient(options, environment);
+    }
+
+    private MongoProperties mapToMongoProperties() {
+        MongoProperties mongoProperties = new MongoProperties();
+        mongoProperties.setDatabase(dbName);
+        mongoProperties.setHost(host);
+        mongoProperties.setPort(port);
+        mongoProperties.setUsername(StringUtils.trimToNull(username));
+        mongoProperties.setPassword(StringUtils.isEmpty(password) ? null : password.toCharArray());
+        return mongoProperties;
+    }
+}
+
+
+package fr.mediametrie.weball.activity.infrastructure.internal.mongo.dpo;
+
+import java.io.Serializable;
+import java.util.Date;
+import java.util.List;
+
+import com.querydsl.core.annotations.QueryEntity;
+import fr.mediametrie.weball.activity.api.dto.enums.ActivityType;
+import fr.mediametrie.weball.activity.api.dto.enums.MeterType;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+
+import fr.mediametrie.weball.activity.api.dto.enums.DeviceType;
+import fr.mediametrie.weball.activity.domain.model.ActivityHistory;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * 
+ * @author BACHOUS
+ *
+ */
+@QueryEntity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Document(collection = ActivityDpo.COLLECTION_NAME)
+public class ActivityDpo implements Serializable {
+
+    /**
+     * 
+     */
+    private static final long serialVersionUID = -5415532634769892504L;
+    protected static final String COLLECTION_NAME = "activity";
+
+    @Id
+    @Field("id")
+    private String id;
+    @Field("householdId")
+    private String householdId;
+    @Field("memberId")
+    private String memberId;
+    @Field("deviceId")
+    private String deviceId;
+    @Field("deviceType")
+    private DeviceType deviceType;
+    @Field("meterType")
+    private MeterType meterType;
+    @Field("activityType")
+    private ActivityType activityType;
+    @Field("firstActivityDate")
+    private Date firstActivityDate;
+    @Field("lastActivityDate")
+    private Date lastActivityDate;
+    @Field("creationDate")
+    private Date creationDate;
+    @Field("histories")
+    private List<ActivityHistory> histories;
+
+}
+
