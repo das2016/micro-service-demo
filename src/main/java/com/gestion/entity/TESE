@@ -1,0 +1,53 @@
+@Value
+@Builder
+@AllArgsConstructor
+@JsonDeserialize(builder = CreateActivityCommand.CreateActivityCommandBuilder.class)
+public class CreateActivityCommand implements Command<Void> {
+
+    List<ActivityDto> activities;
+    
+    private boolean asynchronous;
+
+    @JsonPOJOBuilder(withPrefix = "")
+    public static final class CreateActivityCommandBuilder {
+    }
+}
+
+package fr.mediametrie.weball.activity.application.mapping;
+
+import fr.mediametrie.weball.activity.api.dto.ActivityDto;
+import fr.mediametrie.weball.activity.api.pad.ActivityPadDto;
+import fr.mediametrie.weball.activity.domain.model.ActivityHistory;
+import fr.mediametrie.weball.activity.domain.model.ActivityModel;
+import org.mapstruct.Mapper;
+
+import java.util.List;
+
+/**
+ * @author BACHOUS
+ */
+@Mapper(componentModel = "spring")
+public interface ActivityMapper {
+
+    /**
+     * @param activityDtos
+     * @return
+     */
+    List<ActivityModel> mapTo(List<ActivityDto> activityDtos);
+
+    /**
+     * @param activityDto
+     * @return
+     */
+    ActivityModel mapTo(ActivityDto activityDto);
+
+    ActivityModel mapTo(ActivityHistory activityHistory);
+
+    ActivityHistory mapTo(ActivityModel activityModel);
+
+    ActivityPadDto mapToPadDto(ActivityModel activityModels);
+}
+
+
+
+
